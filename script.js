@@ -30,6 +30,14 @@ playerImage.src = 'shadow_dog.png';
 let frameWidth, frameHeight;
 const scale = 2.0;
 
+// Sounds
+const jumpSound = new Audio("jump.wav");       // replace with your jump sound file
+const hitSound = new Audio("hit.wav");         // replace with your hit sound file
+
+// Optional: prevent delay on replay by allowing overlap
+jumpSound.preload = "auto";
+hitSound.preload = "auto";
+
 // Animations
 const animations = {
   run:   { row: 0, frames: 9 },
@@ -252,7 +260,9 @@ function animate(timestamp) {
     }
     const obRect = shrinkRect({ x: ob.x, y: ob.y, width: ob.width, height: ob.height }, HITBOX.obst);
     if (checkCollision(dogHit, obRect)) {
-      if (activeBuff === "shield") {
+  hitSound.currentTime = 0;
+  hitSound.play();
+  if (activeBuff === "shield") {
         activeBuff = null;
         obstacles.splice(i, 1);
         continue;
@@ -266,7 +276,8 @@ function animate(timestamp) {
         drawGameOver();
         return;
       }
-    }
+  return;
+}
     if (ob.x + ob.width < 0) obstacles.splice(i, 1);
   }
 
@@ -390,10 +401,13 @@ allImages.forEach(img => {
 window.addEventListener("keydown", e => {
   if (gameOver) return;
   if (e.code === "ArrowUp" && dogY === groundY) {
-    currentState = "jump";
-    frameX = 0;
-    velocityY = jumpPower;
-  } else if (e.code === "ArrowDown" && currentState !== "slide") {
+  currentState = "jump";
+  frameX = 0;
+  velocityY = jumpPower;
+  jumpSound.currentTime = 0;   // rewind so it plays every time
+  jumpSound.play();
+}
+ else if (e.code === "ArrowDown" && currentState !== "slide") {
     if (dogY === groundY) {
       currentState = "slide";
       frameX = 0;
@@ -407,6 +421,3 @@ window.addEventListener("keyup", e => {
     frameX = 0;
   }
 });
-
-
-
