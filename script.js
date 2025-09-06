@@ -3,16 +3,20 @@ const ctx = canvas.getContext('2d');
 const CANVAS_WIDTH = canvas.width;
 const CANVAS_HEIGHT = canvas.height;
 
-// ===== UI state (declare before it's used anywhere)
+// ===== UI state
 let startButton = null;
 
-// Game speed and score
+// ===== Game speed and score
 let baseGamespeed = 2;
 let score = 0;
+let highScore = localStorage.getItem("highScore")
+  ? parseInt(localStorage.getItem("highScore"))
+  : 0;
+
 const SCORE_PER_MS = 0.01;
 const SPEED_GROWTH_FACTOR = 0.001;
 
-// Background (parallax)
+// ===== Background (parallax)
 const layers = [];
 for (let i = 1; i <= 5; i++) {
   const img = new Image();
@@ -22,7 +26,7 @@ for (let i = 1; i <= 5; i++) {
 const layerSpeeds = [0.2, 0.4, 0.6, 0.8, 1.0];
 const xOffsets = new Array(5).fill(0);
 
-// Player sprite
+// ===== Player sprite
 const playerImage = new Image();
 playerImage.src = 'shadow_dog.png';
 
@@ -30,18 +34,17 @@ playerImage.src = 'shadow_dog.png';
 let frameWidth, frameHeight;
 const scale = 2.0;
 
-// Sounds
-const jumpSound = new Audio("jump.wav");       // replace with your jump sound file
-const hitSound = new Audio("hit.wav");         // replace with your hit sound file
+// ===== Sounds
+const jumpSound = new Audio("jump.wav");
+const hitSound = new Audio("hit.wav");
+const bgMusic = new Audio("bgmusic.mp3");
 
-// Optional: prevent delay on replay by allowing overlap
 jumpSound.preload = "auto";
 hitSound.preload = "auto";
-const bgMusic = new Audio("bgmusic.mp3");   // 🎵 your background music file
+bgMusic.loop = true;
+bgMusic.volume = 0.5;
 
-bgMusic.loop = true;       // make it loop forever
-bgMusic.volume = 0.5;      // adjust volume (0 = mute, 1 = full)
-// Animations
+// ===== Animations
 const animations = {
   run:   { row: 0, frames: 9 },
   jump:  { row: 1, frames: 7 },
@@ -53,7 +56,7 @@ let frameX = 0;
 let frameCount = 0;
 const staggerFrames = 6;
 
-// Physics
+// ===== Physics
 let dogY;
 let groundY;
 let groundBottomY;
@@ -61,7 +64,7 @@ let velocityY = 0;
 const gravity = 0.7;
 const jumpPower = -15;
 
-// Obstacles
+// ===== Obstacles
 const obstacleImages = ["rock.png", "crate.png"].map(src => {
   const img = new Image();
   img.src = src;
@@ -71,7 +74,7 @@ let obstacles = [];
 let obstacleTimer = 0;
 let obstacleInterval = 1600;
 
-// Coins & Buffs
+// ===== Coins & Buffs
 const coinImage = new Image();
 coinImage.src = "coin.jpeg";
 
@@ -81,13 +84,13 @@ buffImage.src = "buff.webp";
 let coins = [];
 let buffs = [];
 
-// Lives & Buff state
+// ===== Lives & Buff state
 let lives = 2;
 let nextLifeThreshold = 100;
 let activeBuff = null;
 let buffEndTime = 0;
 
-// Hitboxes
+// ===== Hitboxes
 const HITBOX = {
   dog:  { top: 18, right: 30, bottom: 10, left: 30 },
   obst: { top: 6, right: 6, bottom: 6, left: 6 }
@@ -102,11 +105,12 @@ function shrinkRect(r, pad) {
   };
 }
 
-// Game state
+// ===== Game state
 let lastTimestamp = 0;
-let gameOver = true; // start on menu
+let gameOver = true;
 let showStartButton = true;
 
+// ===== Reset game
 function resetGame() {
   score = 0;
   obstacles = [];
@@ -128,6 +132,7 @@ function resetGame() {
   requestAnimationFrame(animate);
 }
 
+// ===== Spawners
 function spawnObstacle() {
   const img = obstacleImages[Math.floor(Math.random() * obstacleImages.length)];
   const size = 60 + Math.random() * 40;
@@ -162,6 +167,7 @@ function spawnBuff() {
   });
 }
 
+// ===== Player drawing
 function drawDog() {
   const anim = animations[currentState];
   if (frameCount % staggerFrames === 0) frameX = (frameX + 1) % anim.frames;
@@ -182,6 +188,7 @@ function drawDog() {
   return { dogHit };
 }
 
+// ===== Collision
 function checkCollision(a, b) {
   return (
     a.x < b.x + b.width &&
@@ -191,12 +198,14 @@ function checkCollision(a, b) {
   );
 }
 
+// ===== Buffs
 function activateBuff() {
   const buffsList = ["shield", "doubleScore", "slowObstacles"];
   activeBuff = buffsList[Math.floor(Math.random() * buffsList.length)];
   buffEndTime = performance.now() + 10000; // 10 sec
 }
 
+// ===== Main loop
 function animate(timestamp) {
   if (gameOver) return;
 
@@ -229,7 +238,7 @@ function animate(timestamp) {
 
   ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  // Draw bg (guard for missing images)
+  // Background
   layers.forEach((layer, i) => {
     if (layer.complete && layer.naturalWidth) {
       ctx.drawImage(layer, xOffsets[i], 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -264,12 +273,13 @@ function animate(timestamp) {
       ctx.drawImage(ob.img, ob.x, ob.y, ob.width, ob.height);
     }
     const obRect = shrinkRect({ x: ob.x, y: ob.y, width: ob.width, height: ob.height }, HITBOX.obst);
+
     if (checkCollision(dogHit, obRect)) {
-  hitSound.currentTime = 0;
-  hitSound.play();
-  bgMusic.pause();
-  setTimeout(700,bgMusic.play);
-  if (activeBuff === "shield") {
+      hitSound.currentTime = 0;
+      hitSound.play();
+      bgMusic.pause();
+
+      if (activeBuff === "shield") {
         activeBuff = null;
         obstacles.splice(i, 1);
         bgMusic.play();
@@ -285,8 +295,8 @@ function animate(timestamp) {
         drawGameOver();
         return;
       }
-  return;
-}
+    }
+
     if (ob.x + ob.width < 0) obstacles.splice(i, 1);
   }
 
@@ -328,6 +338,7 @@ function animate(timestamp) {
   ctx.fillStyle = 'white';
   ctx.textAlign = 'right';
   ctx.fillText('Score: ' + Math.floor(score), CANVAS_WIDTH - 20, 40);
+  ctx.fillText('High Score: ' + highScore, CANVAS_WIDTH - 20, 70);
   ctx.textAlign = 'left';
   ctx.fillText('Lives: ' + lives, 20, 40);
   if (activeBuff) {
@@ -338,21 +349,29 @@ function animate(timestamp) {
   requestAnimationFrame(animate);
 }
 
+// ===== Game Over screen
 function drawGameOver() {
+  // Update high score
+  if (score > highScore) {
+    highScore = Math.floor(score);
+    localStorage.setItem("highScore", highScore);
+  }
+
   ctx.save();
   ctx.font = "48px Arial";
   ctx.fillStyle = "red";
   ctx.textAlign = "center";
-  ctx.fillText("GAME OVER", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 40);
+  ctx.fillText("GAME OVER", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
 
   ctx.font = "28px Arial";
   ctx.fillStyle = "white";
-  ctx.fillText("Final Score: " + Math.floor(score), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+  ctx.fillText("Final Score: " + Math.floor(score), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 10);
+  ctx.fillText("High Score: " + highScore, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 30);
 
-  // Draw start button
+  // Restart button
   const btnW = 200, btnH = 60;
   const btnX = CANVAS_WIDTH / 2 - btnW / 2;
-  const btnY = CANVAS_HEIGHT / 2 + 40;
+  const btnY = CANVAS_HEIGHT / 2 + 80;
   ctx.fillStyle = "black";
   ctx.fillRect(btnX, btnY, btnW, btnH);
   ctx.strokeStyle = "white";
@@ -366,7 +385,7 @@ function drawGameOver() {
   startButton = { x: btnX, y: btnY, w: btnW, h: btnH };
 }
 
-// Start button detection
+// ===== Start button detection
 canvas.addEventListener("click", e => {
   if (showStartButton && startButton) {
     const rect = canvas.getBoundingClientRect();
@@ -379,7 +398,7 @@ canvas.addEventListener("click", e => {
   }
 });
 
-// ===== Robust Load & Init (fixes cached-image race + missing files)
+// ===== Load & Init
 const allImages = [...layers, playerImage, ...obstacleImages, coinImage, buffImage];
 let loadedCount = 0;
 
@@ -393,7 +412,7 @@ function handleLoaded(img) {
     dogY = groundY;
   }
   if (loadedCount === allImages.length) {
-    drawGameOver(); // show start screen once everything attempted
+    drawGameOver(); // show start screen
   }
 }
 
@@ -402,27 +421,27 @@ allImages.forEach(img => {
     handleLoaded(img);
   } else {
     img.onload = () => handleLoaded(img);
-    img.onerror = () => handleLoaded(img); // don't hang if an asset is missing
+    img.onerror = () => handleLoaded(img);
   }
 });
 
-// Controls
+// ===== Controls
 window.addEventListener("keydown", e => {
   if (gameOver) return;
   if (e.code === "ArrowUp" && dogY === groundY) {
-  currentState = "jump";
-  frameX = 0;
-  velocityY = jumpPower;
-  jumpSound.currentTime = 0;   // rewind so it plays every time
-  jumpSound.play();
-}
- else if (e.code === "ArrowDown" && currentState !== "slide") {
+    currentState = "jump";
+    frameX = 0;
+    velocityY = jumpPower;
+    jumpSound.currentTime = 0;
+    jumpSound.play();
+  } else if (e.code === "ArrowDown" && currentState !== "slide") {
     if (dogY === groundY) {
       currentState = "slide";
       frameX = 0;
     }
   }
 });
+
 window.addEventListener("keyup", e => {
   if (gameOver) return;
   if (e.code === "ArrowDown" && currentState === "slide") {
