@@ -1,0 +1,36 @@
+:root {
+  --panel: rgba(255,255,255,0.06);
+  --accent: #66d0ff;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  font-family: Inter, system-ui, Arial, sans-serif;
+  background: linear-gradient(180deg, #0f1112 0%, #1b1d20 100%);
+  color: #e6eef6;
+}
+
+.canvas-wrap {
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height: 100vh;
+}
+
+canvas {
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  background: #000;
+  image-rendering: optimizeSpeed;
+  image-rendering: pixelated;
+}
+
+#canvas1 {
+  border: 3px solid white;
+}
