@@ -37,7 +37,10 @@ const hitSound = new Audio("hit.wav");         // replace with your hit sound fi
 // Optional: prevent delay on replay by allowing overlap
 jumpSound.preload = "auto";
 hitSound.preload = "auto";
+const bgMusic = new Audio("bgmusic.mp3");   // 🎵 your background music file
 
+bgMusic.loop = true;       // make it loop forever
+bgMusic.volume = 0.5;      // adjust volume (0 = mute, 1 = full)
 // Animations
 const animations = {
   run:   { row: 0, frames: 9 },
@@ -120,6 +123,8 @@ function resetGame() {
   lives = 2;
   nextLifeThreshold = 100;
   activeBuff = null;
+  bgMusic.currentTime = 0;
+  bgMusic.play();
   requestAnimationFrame(animate);
 }
 
@@ -262,13 +267,17 @@ function animate(timestamp) {
     if (checkCollision(dogHit, obRect)) {
   hitSound.currentTime = 0;
   hitSound.play();
+  bgMusic.pause();
+  setTimeout(700,bgMusic.play);
   if (activeBuff === "shield") {
         activeBuff = null;
         obstacles.splice(i, 1);
+        bgMusic.play();
         continue;
       } else if (lives > 0) {
         lives--;
         obstacles.splice(i, 1);
+        bgMusic.play();
         continue;
       } else {
         gameOver = true;
