@@ -3,6 +3,9 @@ const ctx = canvas.getContext('2d');
 const CANVAS_WIDTH = canvas.width;
 const CANVAS_HEIGHT = canvas.height;
 
+// ===== UI state (declare before it's used anywhere)
+let startButton = null;
+
 // Game speed and score
 let baseGamespeed = 2;
 let score = 0;
@@ -57,6 +60,22 @@ let obstacles = [];
 let obstacleTimer = 0;
 let obstacleInterval = 1600;
 
+// Coins & Buffs
+const coinImage = new Image();
+coinImage.src = "coin.jpeg";
+
+const buffImage = new Image();
+buffImage.src = "buff.webp";
+
+let coins = [];
+let buffs = [];
+
+// Lives & Buff state
+let lives = 2;
+let nextLifeThreshold = 100;
+let activeBuff = null;
+let buffEndTime = 0;
+
 // Hitboxes
 const HITBOX = {
   dog:  { top: 18, right: 30, bottom: 10, left: 30 },
@@ -80,6 +99,8 @@ let showStartButton = true;
 function resetGame() {
   score = 0;
   obstacles = [];
+  coins = [];
+  buffs = [];
   obstacleTimer = 0;
   lastTimestamp = 0;
   gameOver = false;
@@ -88,6 +109,9 @@ function resetGame() {
   dogY = groundY;
   velocityY = 0;
   frameX = 0;
+  lives = 2;
+  nextLifeThreshold = 100;
+  activeBuff = null;
   requestAnimationFrame(animate);
 }
 
@@ -100,6 +124,28 @@ function spawnObstacle() {
     y: groundBottomY - size,
     width: size,
     height: size
+  });
+}
+
+function spawnCoin() {
+  const size = 30;
+  coins.push({
+    x: CANVAS_WIDTH,
+    y: groundY - 100 - Math.random() * 80,
+    width: size,
+    height: size,
+    img: coinImage
+  });
+}
+
+function spawnBuff() {
+  const size = 40;
+  buffs.push({
+    x: CANVAS_WIDTH,
+    y: groundY - 120,
+    width: size,
+    height: size,
+    img: buffImage
   });
 }
 
@@ -132,14 +178,35 @@ function checkCollision(a, b) {
   );
 }
 
+function activateBuff() {
+  const buffsList = ["shield", "doubleScore", "slowObstacles"];
+  activeBuff = buffsList[Math.floor(Math.random() * buffsList.length)];
+  buffEndTime = performance.now() + 10000; // 10 sec
+}
+
 function animate(timestamp) {
   if (gameOver) return;
 
   const delta = lastTimestamp ? (timestamp - lastTimestamp) : 16;
   lastTimestamp = timestamp;
 
-  score += SCORE_PER_MS * delta;
-  const gamespeed = baseGamespeed + score * SPEED_GROWTH_FACTOR;
+  // Buff check
+  if (activeBuff && performance.now() > buffEndTime) {
+    activeBuff = null;
+  }
+
+  // Score & speed
+  let scoreGain = SCORE_PER_MS * delta;
+  if (activeBuff === "doubleScore") scoreGain *= 2;
+  score += scoreGain;
+  let gamespeed = baseGamespeed + score * SPEED_GROWTH_FACTOR;
+  if (activeBuff === "slowObstacles") gamespeed *= 0.6;
+
+  // Extra life
+  if (score >= nextLifeThreshold) {
+    lives++;
+    nextLifeThreshold += 100;
+  }
 
   // Parallax
   layers.forEach((layer, i) => {
@@ -149,7 +216,7 @@ function animate(timestamp) {
 
   ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  // Draw bg
+  // Draw bg (guard for missing images)
   layers.forEach((layer, i) => {
     if (layer.complete && layer.naturalWidth) {
       ctx.drawImage(layer, xOffsets[i], 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -180,24 +247,72 @@ function animate(timestamp) {
   for (let i = obstacles.length - 1; i >= 0; i--) {
     const ob = obstacles[i];
     ob.x -= gamespeed * 3;
-    ctx.drawImage(ob.img, ob.x, ob.y, ob.width, ob.height);
-
+    if (ob.img.complete && ob.img.naturalWidth) {
+      ctx.drawImage(ob.img, ob.x, ob.y, ob.width, ob.height);
+    }
     const obRect = shrinkRect({ x: ob.x, y: ob.y, width: ob.width, height: ob.height }, HITBOX.obst);
     if (checkCollision(dogHit, obRect)) {
-      gameOver = true;
-      showStartButton = true;
-      drawGameOver();
-      return;
+      if (activeBuff === "shield") {
+        activeBuff = null;
+        obstacles.splice(i, 1);
+        continue;
+      } else if (lives > 0) {
+        lives--;
+        obstacles.splice(i, 1);
+        continue;
+      } else {
+        gameOver = true;
+        showStartButton = true;
+        drawGameOver();
+        return;
+      }
     }
     if (ob.x + ob.width < 0) obstacles.splice(i, 1);
   }
 
-  // Score
+  // Coins
+  if (Math.random() < 0.002) spawnCoin();
+  for (let i = coins.length - 1; i >= 0; i--) {
+    const c = coins[i];
+    c.x -= gamespeed * 3;
+    if (c.img.complete && c.img.naturalWidth) {
+      ctx.drawImage(c.img, c.x, c.y, c.width, c.height);
+    }
+    if (checkCollision(dogHit, c)) {
+      score += 5;
+      coins.splice(i, 1);
+      continue;
+    }
+    if (c.x + c.width < 0) coins.splice(i, 1);
+  }
+
+  // Buffs
+  if (Math.random() < 0.0005) spawnBuff();
+  for (let i = buffs.length - 1; i >= 0; i--) {
+    const b = buffs[i];
+    b.x -= gamespeed * 3;
+    if (b.img.complete && b.img.naturalWidth) {
+      ctx.drawImage(b.img, b.x, b.y, b.width, b.height);
+    }
+    if (checkCollision(dogHit, b)) {
+      activateBuff();
+      buffs.splice(i, 1);
+      continue;
+    }
+    if (b.x + b.width < 0) buffs.splice(i, 1);
+  }
+
+  // HUD
   ctx.save();
   ctx.font = '24px Arial';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'right';
   ctx.fillText('Score: ' + Math.floor(score), CANVAS_WIDTH - 20, 40);
+  ctx.textAlign = 'left';
+  ctx.fillText('Lives: ' + lives, 20, 40);
+  if (activeBuff) {
+    ctx.fillText('Buff: ' + activeBuff, 20, 70);
+  }
   ctx.restore();
 
   requestAnimationFrame(animate);
@@ -228,13 +343,10 @@ function drawGameOver() {
   ctx.fillText("Restart", CANVAS_WIDTH / 2, btnY + 40);
   ctx.restore();
 
-  // Save button area for click detection
   startButton = { x: btnX, y: btnY, w: btnW, h: btnH };
 }
 
-
 // Start button detection
-let startButton = null;
 canvas.addEventListener("click", e => {
   if (showStartButton && startButton) {
     const rect = canvas.getBoundingClientRect();
@@ -247,24 +359,31 @@ canvas.addEventListener("click", e => {
   }
 });
 
-// Load & init
-const allImages = [...layers, playerImage, ...obstacleImages];
+// ===== Robust Load & Init (fixes cached-image race + missing files)
+const allImages = [...layers, playerImage, ...obstacleImages, coinImage, buffImage];
 let loadedCount = 0;
-allImages.forEach(img => {
-  img.onload = () => {
-    loadedCount++;
-    if (img === playerImage) {
-      frameWidth = playerImage.width / animations.run.frames;
-      frameHeight = playerImage.height / Object.keys(animations).length;
 
-      groundY = CANVAS_HEIGHT - frameHeight * scale - 50;
-      groundBottomY = groundY + frameHeight * scale;
-      dogY = groundY;
-    }
-    if (loadedCount === allImages.length) {
-      drawGameOver(); // show start screen
-    }
-  };
+function handleLoaded(img) {
+  loadedCount++;
+  if (img === playerImage) {
+    frameWidth = playerImage.width / animations.run.frames;
+    frameHeight = playerImage.height / Object.keys(animations).length;
+    groundY = CANVAS_HEIGHT - frameHeight * scale - 50;
+    groundBottomY = groundY + frameHeight * scale;
+    dogY = groundY;
+  }
+  if (loadedCount === allImages.length) {
+    drawGameOver(); // show start screen once everything attempted
+  }
+}
+
+allImages.forEach(img => {
+  if (img.complete && img.naturalWidth) {
+    handleLoaded(img);
+  } else {
+    img.onload = () => handleLoaded(img);
+    img.onerror = () => handleLoaded(img); // don't hang if an asset is missing
+  }
 });
 
 // Controls
@@ -288,5 +407,6 @@ window.addEventListener("keyup", e => {
     frameX = 0;
   }
 });
+
 
 
